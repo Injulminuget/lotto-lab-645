@@ -4,6 +4,9 @@
   const STORAGE_KEY = 'lotto-lab.draws.v1';
   const META_KEY = 'lotto-lab.metadata.v1';
   const TRY_KEY = 'lotto-lab.lastAttempt.v1';
+  const PICKS_KEY = 'lotto-lab.personal.v1';
+  const PICK_LIMIT = 60;
+  const ALL_COMBINATIONS = 8145060;
   const SEED = [
     {no:1246,date:'2026-10-17',nums:[16,22,23,24,27,28],bonus:6,winners:16,prize:1881025430},
     {no:1245,date:'2026-10-10',nums:[4,5,25,28,32,42],bonus:12,winners:10,prize:3006515775},
@@ -15,7 +18,7 @@
     {name:'smok95 공개 미러',url:'https://smok95.github.io/lotto/results/all.json',kind:'json'},
     {name:'캐시로지 CSV',url:'https://cashlogy.kr/lotto/excel.csv',kind:'csv'}
   ];
-  const state = {draws:SEED.slice(), source:'검증된 최근 5회 기본 데이터', isSeed:true, updated:'2026-10-18', range:'100', tab:'overview', selectedNumber:16, sort:'number', historyLimit:25, search:'', loading:false};
+  const state = {draws:SEED.slice(), source:'검증된 최근 5회 기본 데이터', isSeed:true, updated:'2026-10-18', range:'100', tab:'overview', selectedNumber:16, sort:'number', historyLimit:25, search:'', loading:false, selectedProbNumber:1, personalSelection:[], personalPicks:[]};
   const $ = id => document.getElementById(id);
   const fmt = n => Number(n).toLocaleString('ko-KR');
   const pct = n => `${(n*100).toFixed(1)}%`;
@@ -111,6 +114,65 @@
     safeStorage.set(META_KEY,JSON.stringify({source,updated:state.updated}));
     return saved;
   }
+  // Theoretical distributions enumerate equally likely six-number sets, not individual permutations.
+  function choose(n,k) {
+    if(k<0||k>n)return 0;
+    k=Math.min(k,n-k);let result=1;
+    for(let i=1;i<=k;i++)result=result*(n-k+i)/i;
+    return Math.round(result);
+  }
+  const THEORETICAL_ODDS = Array.from({length:7},(_,odd)=>choose(23,odd)*choose(22,6-odd)/ALL_COMBINATIONS);
+  function sumDistribution() {
+    const dp=Array.from({length:7},()=>new Float64Array(256));
+    dp[0][0]=1;
+    for(let number=1;number<=45;number++){
+      for(let picked=Math.min(number,6);picked>=1;picked--){
+        for(let sum=255;sum>=number;sum--)dp[picked][sum]+=dp[picked-1][sum-number];
+      }
+    }
+    return dp[6];
+  }
+  const SUM_COMBINATIONS = sumDistribution();
+  const SUM_BUCKETS = [
+    {name:'90 이하',low:21,high:90},
+    {name:'91~120',low:91,high:120},
+    {name:'121~150',low:121,high:150},
+    {name:'151~180',low:151,high:180},
+    {name:'181~210',low:181,high:210},
+    {name:'211 이상',low:211,high:255}
+  ];
+  const THEORETICAL_SUMS = SUM_BUCKETS.map(b=>{
+    let count=0;for(let sum=b.low;sum<=b.high;sum++)count+=SUM_COMBINATIONS[sum];
+    return count/ALL_COMBINATIONS;
+  });
+  const numberSum = nums => nums.reduce((a,b)=>a+b,0);
+  function sumBucketIndex(sum){return SUM_BUCKETS.findIndex(b=>sum>=b.low&&sum<=b.high)}
+  function compareDistributions(labels,observed,theoretical,drawCount) {
+    const max=Math.max(1,...observed,...theoretical.map(x=>x*drawCount));
+    return `<div class="compare-legend"><span><i class="compare-key real"></i>실제</span><span><i class="compare-key expected"></i>이론적 기대</span></div><div class="compare-list">${labels.map((label,i)=>{
+      const expectation=theoretical[i]*drawCount;
+      return `<div class="compare-row"><div class="compare-row-label">${clean(label)}</div><div class="compare-bars"><div class="compare-track"><i class="real" style="width:${(observed[i]/max*100).toFixed(2)}%"></i></div><div class="compare-track"><i class="expected" style="width:${(expectation/max*100).toFixed(2)}%"></i></div></div><div class="compare-values"><strong>${fmt(observed[i])}</strong><small>${expectation.toFixed(1)}</small></div></div>`;
+    }).join('')}</div>`;
+  }
+  function renderProbability(){
+    const ds=selectedDraws(),n=ds.length,counts=countNumbers(ds);
+    const expectation=n*6/45,sd=Math.sqrt(n*(6/45)*(39/45)),low=Math.max(0,expectation-1.96*sd),high=Math.min(n,expectation+1.96*sd);
+    const outside=counts.slice(1).filter(count=>count<low||count>high).length;
+    $('probSummary').innerHTML=`<div class="prob-stat"><span>번호 하나의 기대 출현</span><strong>${expectation.toFixed(1)}회</strong></div><div class="prob-stat"><span>약 95% 예상 구간</span><strong>${low.toFixed(1)}~${high.toFixed(1)}회</strong></div><div class="prob-stat"><span>구간 밖에 있는 번호</span><strong>${outside}개 / 45개</strong></div>`;
+    $('probNumberGrid').innerHTML=Array.from({length:45},(_,i)=>{
+      const number=i+1,actual=counts[number],delta=actual-expectation;
+      return `<button class="prob-cell ${number===state.selectedProbNumber?'active':''}" type="button" data-prob-number="${number}" aria-pressed="${number===state.selectedProbNumber}" aria-label="${number}번 실제 ${actual}회, 기대 ${expectation.toFixed(1)}회"><span>${number}</span><strong>${actual}회</strong><small class="${delta>0?'above':'below'}">${delta>0?'+':''}${delta.toFixed(1)}</small></button>`;
+    }).join('');
+    const selected=state.selectedProbNumber,actual=counts[selected],difference=actual-expectation,z=sd?difference/sd:0;
+    $('probNumberDetail').innerHTML=`<div>${ball(selected)}<div><strong>${selected}번: 실제 ${fmt(actual)}회</strong><span>기대 ${expectation.toFixed(1)}회 · 기대 대비 ${difference>0?'+':''}${difference.toFixed(1)}회 · 표준편차 기준 ${z>0?'+':''}${z.toFixed(2)}</span></div></div><p>${n<30?'회차가 적어 예상 구간의 근사가 불안정할 수 있습니다. ':'표준편차 차이는 관측된 기록의 흔들림을 보여주는 지표일 뿐입니다. '}과거 기록만으로 다음 회차의 공이 더 잘 뽑힌다고 판단할 수 없습니다.</p>`;
+    const oddObserved=Array(7).fill(0),sumObserved=Array(SUM_BUCKETS.length).fill(0);
+    ds.forEach(draw=>{
+      oddObserved[draw.nums.filter(number=>number%2===1).length]++;
+      sumObserved[sumBucketIndex(numberSum(draw.nums))]++;
+    });
+    $('probOddEven').innerHTML=compareDistributions(Array.from({length:7},(_,i)=>`홀 ${i} : 짝 ${6-i}`),oddObserved,THEORETICAL_ODDS,n);
+    $('probSums').innerHTML=compareDistributions(SUM_BUCKETS.map(b=>b.name),sumObserved,THEORETICAL_SUMS,n);
+  }
   function selectedDraws(){const n=state.range==='all'?state.draws.length:Number(state.range);return state.draws.slice(0,n)}
   function countNumbers(list){const arr=Array(46).fill(0);list.forEach(d=>d.nums.forEach(n=>arr[n]++));return arr}
   function gapFor(n){const pos=state.draws.findIndex(d=>d.nums.includes(n));return pos<0?null:pos}
@@ -125,7 +187,7 @@
     $('overviewUpdated').textContent=latest.date?`최근 추첨 ${dateLabel(latest.date)}`:'';
     $('latestBadge').textContent=`제 ${fmt(latest.no)}회`;
     for(const btn of document.querySelectorAll('.range-btn')){const active=btn.dataset.range===state.range;btn.classList.toggle('active',active);btn.setAttribute('aria-pressed',String(active))}
-    $('periodBar').hidden=state.tab==='history'||state.tab==='data';
+    $('periodBar').hidden=state.tab==='history'||state.tab==='personal'||state.tab==='data';
   }
   function heatShade(v,min,max){return max<=min?'shade2':`shade${Math.min(4,Math.floor((v-min)/(max-min)*4.99))}`}
   function renderOverview(){
@@ -197,21 +259,76 @@
     $('historyCount').textContent=`${fmt(records.length)}개 중 ${fmt(visible.length)}개 표시`;
     $('loadMore').hidden=visible.length>=records.length;
   }
+  function normalizePick(value){
+    if(!value||typeof value!=='object')throw Error('조합 형식이 올바르지 않습니다.');
+    const nums=value.nums;
+    if(!Array.isArray(nums)||nums.length!==6||nums.some(n=>!Number.isInteger(n)||n<1||n>45)||new Set(nums).size!==6){
+      throw Error('각 조합에는 서로 다른 1~45번 숫자 6개가 있어야 합니다.');
+    }
+    if(typeof value.name!=='string'||value.name.length>40||typeof (value.memo??'')!=='string'||(value.memo??'').length>160){
+      throw Error('조합 이름이나 메모가 너무 깁니다.');
+    }
+    const date=typeof value.savedAt==='string' && /^\d{4}-\d{2}-\d{2}/.test(value.savedAt)?value.savedAt.slice(0,10):'';
+    const id=(typeof value.id==='string'&&/^[a-zA-Z0-9_-]{1,80}$/.test(value.id))?value.id:`pick-${Date.now()}-${Math.random().toString(36).slice(2,9)}`;
+    return {id,nums:[...nums].sort((a,b)=>a-b),name:value.name.trim()||'나만의 조합',memo:(value.memo||'').trim(),savedAt:date};
+  }
+  function loadPersonalPicks(){
+    try{
+      const raw=safeStorage.get(PICKS_KEY);
+      if(!raw)return;
+      const parsed=JSON.parse(raw);
+      if(!Array.isArray(parsed)||parsed.length>PICK_LIMIT)throw Error('저장된 조합 형식이 올바르지 않습니다.');
+      state.personalPicks=parsed.map(normalizePick);
+    }catch(err){console.warn('내 번호 로드 실패:',err.message);state.personalPicks=[]}
+  }
+  function persistPicks(){return safeStorage.set(PICKS_KEY,JSON.stringify(state.personalPicks))}
+  function renderPersonalPicker(){
+    const picked=state.personalSelection;
+    $('personalCount').textContent=`${picked.length} / 6`;
+    $('personalSelected').innerHTML=picked.length?balls([...picked].sort((a,b)=>a-b)):'<span class="personal-placeholder">1부터 45까지, 마음이 이끄는 숫자 6개를 골라보세요.</span>';
+    $('personalNumberGrid').innerHTML=Array.from({length:45},(_,i)=>{
+      const n=i+1,active=picked.includes(n);
+      return `<button class="personal-cell ${active?'active':''}" type="button" data-lucky-number="${n}" aria-label="${n}번 ${active?'선택됨':'선택'}" aria-pressed="${active}">${n}</button>`;
+    }).join('');
+    $('personalSave').disabled=picked.length!==6||state.personalPicks.length>=PICK_LIMIT;
+  }
+  function renderPersonalSaved(){
+    $('personalTotal').textContent=`${state.personalPicks.length}개`;
+    $('personalSaved').innerHTML=state.personalPicks.length?state.personalPicks.map((pick,index)=>`<div class="personal-card"><div class="personal-card-head"><div><strong>${clean(pick.name)}</strong><span>${clean(pick.savedAt||'날짜 미확인')}</span></div><button type="button" class="personal-remove" data-remove-index="${index}" aria-label="${clean(pick.name)} 조합 삭제">삭제</button></div>${balls(pick.nums)}${pick.memo?`<p class="personal-story">${clean(pick.memo)}</p>`:''}<div class="personal-card-actions"><button class="secondary-btn" type="button" data-copy-index="${index}">번호 복사</button><button class="secondary-btn" type="button" data-compare-index="${index}">과거 회차와 비교</button></div></div>`).join(''):'<div class="empty-state">아직 저장한 조합이 없습니다.<br>내게 의미 있는 숫자 6개부터 골라볼까요?</div>';
+    $('personalExport').disabled=!state.personalPicks.length;
+    $('personalSave').disabled=state.personalSelection.length!==6||state.personalPicks.length>=PICK_LIMIT;
+  }
+  function renderPersonal(){renderPersonalPicker();renderPersonalSaved()}
+  function comparePersonalPick(pick){
+    const matched=Array(7).fill(0),same=[];
+    for(const d of state.draws){
+      const count=pick.nums.filter(n=>d.nums.includes(n)).length;
+      matched[count]++;
+      if(count>=4&&same.length<8)same.push(`${d.no}회 (${count}개 일치)`);
+    }
+    const lines=matched.map((value,i)=>`<li>${i}개 일치: <strong>${fmt(value)}회</strong></li>`).join('');
+    modal('내 조합의 과거 출현 비교',`<p><strong>${clean(pick.name)}</strong></p>${balls(pick.nums)}<p>저장된 <strong>${fmt(state.draws.length)}개</strong> 과거 회차의 일반 당첨번호 6개와 비교한 기록입니다.</p><ul>${lines}</ul><p>${same.length?`4개 이상 일치한 회차: ${clean(same.join(', '))}`:'확인된 자료에서는 4개 이상 일치한 회차가 없습니다.'}</p><p><small>과거에 몇 개가 일치했는지와 앞으로 당첨될 확률은 무관합니다.</small></p>`);
+  }
+  function downloadText(text,name,mime){
+    const blob=new Blob([text],{type:mime}),link=document.createElement('a');
+    const url=URL.createObjectURL(blob);
+    link.href=url;link.download=name;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),2000);
+  }
   function renderData(){
     const ds=state.draws,full=ds.at(-1).no===1;
     $('datasetSummary').innerHTML=`<div class="dataset-card"><span>저장 회차</span><strong>${fmt(ds.length)}개</strong></div><div class="dataset-card"><span>가장 오래된 회차</span><strong>${fmt(ds.at(-1).no)}회</strong></div><div class="dataset-card"><span>최근 회차</span><strong>${fmt(ds[0].no)}회</strong></div>`;
     $('dataFeedback').dataset.defaultMessage=`${full?'전체':'일부'} ${fmt(ds.length)}회 · ${state.source} · ${state.updated||'기본 포함'}`;
     if(!$('dataFeedback').dataset.manual){$('dataFeedback').textContent=$('dataFeedback').dataset.defaultMessage}
   }
-  function render(){renderHeader();renderOverview();renderNumbers();renderPatterns();renderHistory();renderData()}
+  function render(){renderHeader();renderOverview();renderNumbers();renderProbability();renderPatterns();renderHistory();renderPersonal();renderData()}
   function notice(msg,error=false){const el=$('notice');el.textContent=msg;el.style.borderColor=error?'#aa6969':'#54738b';el.hidden=false;clearTimeout(notice.timer);notice.timer=setTimeout(()=>el.hidden=true,7000)}
   function feedback(msg,kind=''){const el=$('dataFeedback');el.textContent=msg;el.className=`callout ${kind}`;el.dataset.manual='1'}
   function setTab(name,updateHash=true){
-    if(!['overview','numbers','patterns','history','data'].includes(name))name='overview';
+    if(!['overview','numbers','patterns','history','personal','data'].includes(name))name='overview';
     state.tab=name;
     document.querySelectorAll('.view').forEach(el=>{const active=el.id===`view-${name}`;el.hidden=!active;el.classList.toggle('active',active)});
     document.querySelectorAll('[data-tab]').forEach(el=>{const active=el.dataset.tab===name;el.classList.toggle('active',active);if(el.matches('.mobile-tab')){if(active)el.setAttribute('aria-current','page');else el.removeAttribute('aria-current')}else el.setAttribute('aria-selected',String(active))});
-    $('periodBar').hidden=name==='history'||name==='data';
+    $('periodBar').hidden=name==='history'||name==='personal'||name==='data';
     if(updateHash && location.hash!==`#${name}`)history.replaceState(null,'',`#${name}`);
     window.scrollTo({top:0,behavior:'instant'});
   }
@@ -227,6 +344,67 @@
     $('historySearch').addEventListener('input',event=>{state.search=event.target.value;state.historyLimit=25;renderHistory()});
     $('clearSearch').addEventListener('click',()=>{state.search='';$('historySearch').value='';state.historyLimit=25;renderHistory()});
     $('loadMore').addEventListener('click',()=>{state.historyLimit+=25;renderHistory()});
+    $('probNumberGrid').addEventListener('click',event=>{
+      const button=event.target.closest('[data-prob-number]');if(!button)return;
+      state.selectedProbNumber=Number(button.dataset.probNumber);renderProbability();
+    });
+    $('personalNumberGrid').addEventListener('click',event=>{
+      const button=event.target.closest('[data-lucky-number]');if(!button)return;
+      const n=Number(button.dataset.luckyNumber),index=state.personalSelection.indexOf(n);
+      if(index>=0)state.personalSelection.splice(index,1);
+      else if(state.personalSelection.length<6)state.personalSelection.push(n);
+      else {notice('번호는 6개까지만 고를 수 있습니다. 선택한 번호를 해제해 주세요.',true);return}
+      renderPersonalPicker();
+    });
+    $('personalClear').addEventListener('click',()=>{state.personalSelection=[];renderPersonalPicker()});
+    $('personalSave').addEventListener('click',()=>{
+      if(state.personalSelection.length!==6){notice('서로 다른 숫자 6개를 골라주세요.',true);return}
+      if(state.personalPicks.length>=PICK_LIMIT){notice('저장 공간은 최대 60개 조합입니다. 기존 조합을 정리하거나 백업해 주세요.',true);return}
+      const name=$('personalName').value.trim().slice(0,40)||'나만의 행운 번호';
+      const memo=$('personalMemo').value.trim().slice(0,160);
+      const pick=normalizePick({nums:[...state.personalSelection],name,memo,savedAt:new Date().toLocaleDateString('sv-SE',{timeZone:'Asia/Seoul'})});
+      state.personalPicks.unshift(pick);
+      const stored=persistPicks();
+      state.personalSelection=[];$('personalName').value='';$('personalMemo').value='';renderPersonal();
+      notice(stored?'나만의 번호 6개를 저장했습니다.':'번호를 임시로 보관했지만 브라우저 저장이 실패했습니다. JSON 백업을 내려받으세요.',!stored);
+    });
+    $('personalSaved').addEventListener('click',event=>{
+      const del=event.target.closest('[data-remove-index]');
+      if(del){
+        const index=Number(del.dataset.removeIndex),pick=state.personalPicks[index];if(!pick)return;
+        if(!confirm(`「${pick.name}」 조합을 삭제할까요?`))return;
+        state.personalPicks.splice(index,1);const stored=persistPicks();renderPersonal();notice(stored?'조합을 삭제했습니다.':'화면에서는 삭제됐지만 브라우저 저장은 실패했습니다.',!stored);return;
+      }
+      const copy=event.target.closest('[data-copy-index]');
+      if(copy){const pick=state.personalPicks[Number(copy.dataset.copyIndex)];if(!pick)return;
+        const text=`${pick.name}: ${pick.nums.join(', ')}`;
+        if(navigator.clipboard?.writeText)navigator.clipboard.writeText(text).then(()=>notice('번호를 복사했습니다.')).catch(()=>modal('번호 복사',`<p>${clean(text)}</p>`));
+        else modal('번호 복사',`<p>${clean(text)}</p>`);
+        return;
+      }
+      const compare=event.target.closest('[data-compare-index]');
+      if(compare){const pick=state.personalPicks[Number(compare.dataset.compareIndex)];if(pick)comparePersonalPick(pick)}
+    });
+    $('personalExport').addEventListener('click',()=>{
+      if(!state.personalPicks.length)return;
+      downloadText(JSON.stringify({kind:'lotto-lab-personal-picks',version:1,exportedAt:new Date().toISOString(),items:state.personalPicks},null,2),`lotto-lab-my-numbers-${new Date().toLocaleDateString('sv-SE')}.json`,'application/json;charset=utf-8');
+      notice('내 번호 백업 JSON 다운로드를 시작했습니다.');
+    });
+    $('personalImport').addEventListener('click',()=>$('personalImportFile').click());
+    $('personalImportFile').addEventListener('change',async event=>{
+      const file=event.target.files?.[0];if(!file)return;
+      try{
+        if(file.size>200000)throw Error('백업 파일은 200KB 이하만 지원합니다.');
+        const payload=JSON.parse(await file.text());
+        if(payload?.kind!=='lotto-lab-personal-picks'||payload.version!==1||!Array.isArray(payload.items)||payload.items.length>PICK_LIMIT)throw Error('LOTTO LAB 내 번호 백업 파일이 아닙니다.');
+        const incoming=payload.items.map(normalizePick);
+        const existing=new Set(state.personalPicks.map(p=>`${p.name}::${p.nums.join('-')}::${p.memo}`));
+        const additional=incoming.filter(p=>!existing.has(`${p.name}::${p.nums.join('-')}::${p.memo}`));
+        if(state.personalPicks.length+additional.length>PICK_LIMIT)throw Error('중복을 제외한 저장 한도(60개)를 초과했습니다.');
+        state.personalPicks=[...additional,...state.personalPicks];
+        const stored=persistPicks();renderPersonal();notice(stored?`${additional.length}개 조합을 가져왔습니다. 기존 조합은 유지했습니다.`:'조합은 적용했지만 브라우저 저장이 실패했습니다.',!stored);
+      }catch(err){notice(`내 번호 불러오기 실패: ${err.message}`,true)}finally{event.target.value=''}
+    });
     $('refreshBtn').addEventListener('click',()=>refresh(true));
     $('uploadBtn').addEventListener('click',()=>$('fileInput').click());
     $('fileInput').addEventListener('change',async event=>{
@@ -291,12 +469,12 @@
     }finally{state.loading=false;$('refreshBtn').disabled=false;$('refreshBtn').innerHTML='<svg class="svg-icon"><use href="#i-refresh"></use></svg> 인터넷에서 전체 기록 갱신'}
   }
   function start(){
-    loadStored();initEvents();render();setTab(location.hash.replace('#','')||'overview',false);
+    loadStored();loadPersonalPicks();initEvents();render();setTab(location.hash.replace('#','')||'overview',false);
     if('serviceWorker'in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('./sw.js').catch(e=>console.warn('오프라인 등록 실패:',e));
     const last=Number(safeStorage.get(TRY_KEY)||0);
     if(Date.now()-last>8*60*60*1000 && navigator.onLine && location.protocol.startsWith('http'))refresh(false);
   }
   start();
   // Visible only to local automated smoke tests, no remote access or mutating effects.
-  window.LottoLabTest={validate,parseCSV,countNumbers,selectedDraws,getState:()=>({...state,draws:state.draws.slice()})};
+  window.LottoLabTest={validate,parseCSV,countNumbers,selectedDraws,choose,sumDistribution,theoretical:{odds:THEORETICAL_ODDS,sums:THEORETICAL_SUMS,total:SUM_COMBINATIONS.reduce((a,b)=>a+b,0)},getState:()=>({...state,draws:state.draws.slice()})};
 })();
