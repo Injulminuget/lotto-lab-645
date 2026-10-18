@@ -1,0 +1,30 @@
+{
+  "name": "LOTTO LAB — 로또 6/45 기록 연구소",
+  "short_name": "LOTTO LAB",
+  "id": "./index.html",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#101b2a",
+  "theme_color": "#101b2a",
+  "description": "로또 6/45의 지난 당첨 기록을 보는 개인용 분석 앱",
+  "lang": "ko-KR",
+  "categories": [
+    "education",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "./icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "./icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
