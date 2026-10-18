@@ -42,8 +42,9 @@
       <nav class="tabs desktop-tabs" aria-label="분석 메뉴">
         <button class="tab-btn active" data-tab="overview" aria-selected="true"><svg class="svg-icon"><use href="#i-home"></use></svg>개요</button>
         <button class="tab-btn" data-tab="numbers" aria-selected="false"><svg class="svg-icon"><use href="#i-grid"></use></svg>번호 분석</button>
-        <button class="tab-btn" data-tab="patterns" aria-selected="false"><svg class="svg-icon"><use href="#i-chart"></use></svg>패턴</button>
+        <button class="tab-btn" data-tab="patterns" aria-selected="false"><svg class="svg-icon"><use href="#i-chart"></use></svg>확률·패턴</button>
         <button class="tab-btn" data-tab="history" aria-selected="false"><svg class="svg-icon"><use href="#i-list"></use></svg>회차 기록</button>
+        <button class="tab-btn" data-tab="personal" aria-selected="false"><svg class="svg-icon"><use href="#i-sparkle"></use></svg>내 번호</button>
         <button class="tab-btn" data-tab="data" aria-selected="false"><svg class="svg-icon"><use href="#i-database"></use></svg>데이터</button>
       </nav>
 
@@ -75,7 +76,14 @@
       </section>
 
       <section class="view" id="view-patterns" aria-labelledby="patternsHeading" hidden>
-        <div class="section-title-row"><div><div class="eyebrow muted">COMBINATION SHAPES</div><h2 id="patternsHeading">조합의 모양</h2></div></div>
+        <div class="section-title-row"><div><div class="eyebrow muted">THEORY VS HISTORY</div><h2 id="patternsHeading">이론 확률과 실제 기록</h2></div></div>
+        <p class="section-intro">어떤 숫자가 더 잘 뽑힐까요? 먼저 모든 번호가 동일한 확률이라는 가정에서 <strong>기대 출현 횟수</strong>와 <strong>실제 기록</strong>을 비교해 보세요.</p>
+        <article class="panel"><div class="panel-top"><div><span class="overline">ALL 45 BALLS</span><h3>번호별 실제 출현 vs 기대 출현</h3></div><span class="panel-caption">보너스 제외</span></div><div id="probSummary" class="prob-summary"></div><div id="probNumberGrid" class="prob-number-grid" aria-label="번호별 실제 출현 차이"></div><div id="probNumberDetail" class="prob-number-detail" aria-live="polite"></div><p class="footnote">회차별 추첨이 공정하고 독립적이라는 가정에서 계산한 개별 번호의 약 95% 예상 구간입니다. 45개 번호를 동시에 비교하면 일부가 구간 밖에 나오는 현상은 우연히도 발생할 수 있습니다. 실제 기계 편향의 증거로 해석할 수 없습니다.</p></article>
+        <div class="two-col">
+          <article class="panel"><div class="panel-top"><div><span class="overline">EXACT COMBINATIONS</span><h3>홀짝 조합: 이론 vs 실제</h3></div></div><div id="probOddEven"></div><p class="footnote">45개 중 홀수 23개, 짝수 22개에서 중복 없이 6개를 뽑는 조합 수로 계산합니다.</p></article>
+          <article class="panel"><div class="panel-top"><div><span class="overline">EXACT SUM DISTRIBUTION</span><h3>번호 합계: 이론 vs 실제</h3></div></div><div id="probSums"></div><p class="footnote">가능한 8,145,060개 조합의 합계 분포를 전부 계산합니다. 합계가 중앙에 몰리는 것은 조합의 개수가 많기 때문이며, 특정 조합의 당첨 확률이 더 높다는 뜻은 아닙니다.</p></article>
+        </div>
+        <div class="section-title-row nested-heading"><div><div class="eyebrow muted">COMBINATION SHAPES</div><h2>조합의 모양</h2></div></div>
         <div class="two-col">
           <article class="panel"><div class="panel-top"><div><span class="overline">ODD / EVEN</span><h3>홀수와 짝수</h3></div></div><div id="oddEvenChart"></div></article>
           <article class="panel"><div class="panel-top"><div><span class="overline">LOW / HIGH</span><h3>낮은 수와 높은 수</h3></div></div><div id="lowHighChart"></div><p class="footnote">낮은 수: 1~22 / 높은 수: 23~45</p></article>
@@ -92,6 +100,26 @@
         <article class="panel"><div class="search-row"><label class="search-field"><svg class="svg-icon"><use href="#i-search"></use></svg><input id="historySearch" type="search" inputmode="search" placeholder="회차·추첨일·번호 검색 (예: 16 22)" autocomplete="off" aria-label="회차, 추첨일 또는 포함 번호 검색"></label><button id="clearSearch" class="secondary-btn" type="button">초기화</button></div><p class="footnote">숫자 하나는 회차와 번호 양쪽에서 검색됩니다. 여러 번호는 공백으로 구분하면 모두 포함된 회차를 찾습니다.</p><div id="historyList" class="history-list"></div><div class="history-footer"><span id="historyCount"></span><button id="loadMore" class="secondary-btn" type="button">더 보기</button></div></article>
       </section>
 
+      <section class="view" id="view-personal" aria-labelledby="personalHeading" hidden>
+        <div class="section-title-row"><div><div class="eyebrow muted">MY LUCKY NUMBERS</div><h2 id="personalHeading">꿈과 행운의 번호</h2></div></div>
+        <p class="section-intro">꿈에서 본 숫자, 좋아하는 날, 유난히 마음에 드는 숫자. <strong>여섯 개를 직접 골라</strong> 그날의 이야기를 저장해 보세요.</p>
+        <article class="panel"><div class="panel-top"><div><span class="overline">PICK YOUR SIX</span><h3>번호 직접 선택</h3></div><span class="small-badge" id="personalCount">0 / 6</span></div>
+          <div class="personal-selected" id="personalSelected" aria-live="polite"></div>
+          <div class="personal-number-grid" id="personalNumberGrid" aria-label="1부터 45까지 번호 직접 선택"></div>
+          <div class="personal-form">
+            <label class="personal-field"><span>이 조합의 이름</span><input type="text" id="personalName" placeholder="예: 어젯밤에 꾼 꿈" maxlength="40" autocomplete="off"></label>
+            <label class="personal-field"><span>기억하고 싶은 이야기 <small>(선택)</small></span><textarea id="personalMemo" rows="2" placeholder="어떤 꿈이나 의미가 담긴 번호인가요?" maxlength="160"></textarea></label>
+            <div class="personal-form-actions"><button id="personalClear" class="secondary-btn" type="button">번호 다시 고르기</button><button id="personalSave" class="primary-btn" type="button" disabled>선택한 6개 번호 저장</button></div>
+          </div>
+          <p class="footnote">꿈과 의미는 번호를 고르는 즐거움입니다. 당첨 확률을 높여주는 것은 아닙니다.</p>
+        </article>
+        <article class="panel"><div class="panel-top"><div><span class="overline">YOUR LITTLE ARCHIVE</span><h3>저장한 나만의 조합</h3></div><span class="panel-caption" id="personalTotal">0개</span></div>
+          <div class="personal-saved-list" id="personalSaved" aria-live="polite"></div>
+          <div class="personal-backup"><button id="personalExport" class="secondary-btn" type="button">내 번호 백업 (JSON)</button><button id="personalImport" class="secondary-btn" type="button">백업 불러오기</button><input type="file" id="personalImportFile" accept=".json,application/json" hidden></div>
+          <p class="footnote">번호와 메모는 이 기기의 브라우저에만 저장됩니다. GitHub로 전송하지 않으며, 브라우저 데이터를 지우면 사라질 수 있으므로 백업 파일을 보관하세요.</p>
+        </article>
+      </section>
+
       <section class="view" id="view-data" aria-labelledby="dataHeading" hidden>
         <div class="section-title-row"><div><div class="eyebrow muted">DATA & STORAGE</div><h2 id="dataHeading">내 데이터 관리</h2></div></div>
         <article class="panel"><div class="panel-top"><div><span class="overline">HISTORY DATASET</span><h3>당첨 이력 데이터</h3></div><span class="small-badge" id="dataStateBadge">확인 중</span></div><div class="dataset-summary" id="datasetSummary"></div><div class="action-stack"><button id="refreshBtn" type="button" class="primary-btn"><svg class="svg-icon"><use href="#i-refresh"></use></svg> 인터넷에서 전체 기록 갱신</button><button id="uploadBtn" type="button" class="secondary-btn"><svg class="svg-icon"><use href="#i-upload"></use></svg> CSV · JSON 파일 불러오기</button><input id="fileInput" type="file" accept=".csv,.json,text/csv,application/json" hidden><button id="exportBtn" type="button" class="secondary-btn"><svg class="svg-icon"><use href="#i-download"></use></svg> 현재 데이터 CSV 저장</button></div><div class="callout" id="dataFeedback" role="status" aria-live="polite">인터넷 연결 시 전체 회차를 갱신할 수 있습니다.</div></article>
@@ -104,11 +132,11 @@
     </main>
   </div>
 
-  <nav class="mobile-nav" aria-label="하단 메뉴"><button class="mobile-tab active" data-tab="overview" aria-label="개요" aria-current="page"><svg class="svg-icon"><use href="#i-home"></use></svg><span>개요</span></button><button class="mobile-tab" data-tab="numbers" aria-label="번호 분석"><svg class="svg-icon"><use href="#i-grid"></use></svg><span>번호</span></button><button class="mobile-tab" data-tab="patterns" aria-label="패턴"><svg class="svg-icon"><use href="#i-chart"></use></svg><span>패턴</span></button><button class="mobile-tab" data-tab="history" aria-label="회차 기록"><svg class="svg-icon"><use href="#i-list"></use></svg><span>회차</span></button><button class="mobile-tab" data-tab="data" aria-label="데이터"><svg class="svg-icon"><use href="#i-database"></use></svg><span>데이터</span></button></nav>
+  <nav class="mobile-nav" aria-label="하단 메뉴"><button class="mobile-tab active" data-tab="overview" aria-label="개요" aria-current="page"><svg class="svg-icon"><use href="#i-home"></use></svg><span>개요</span></button><button class="mobile-tab" data-tab="numbers" aria-label="번호 분석"><svg class="svg-icon"><use href="#i-grid"></use></svg><span>번호</span></button><button class="mobile-tab" data-tab="patterns" aria-label="확률과 패턴"><svg class="svg-icon"><use href="#i-chart"></use></svg><span>확률</span></button><button class="mobile-tab" data-tab="history" aria-label="회차 기록"><svg class="svg-icon"><use href="#i-list"></use></svg><span>회차</span></button><button class="mobile-tab" data-tab="personal" aria-label="내 꿈과 행운 번호"><svg class="svg-icon"><use href="#i-sparkle"></use></svg><span>내 번호</span></button><button class="mobile-tab" data-tab="data" aria-label="데이터"><svg class="svg-icon"><use href="#i-database"></use></svg><span>데이터</span></button></nav>
 
   <dialog id="modal" class="modal"><div class="modal-inner"><div class="modal-header"><h3 id="modalTitle">안내</h3><button id="modalClose" class="icon-action" type="button" aria-label="닫기"><svg class="svg-icon"><use href="#i-x"></use></svg></button></div><div id="modalBody" class="modal-body"></div><div class="modal-footer"><button id="modalDone" class="primary-btn" type="button">확인</button></div></div></dialog>
 
-  <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol><symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol><symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10m6 10V4m5 16v-8m5 8v-6"/></symbol><symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol><symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></symbol><symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.7 9a7 7 0 0 1 12-2l2.3 5M4 12l2.3 5a7 7 0 0 0 12-2"/></symbol><symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></symbol><symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 17V5m-5 5 5-5 5 5M4 17v4h16v-4"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></symbol></svg>
+  <svg xmlns="http://www.w3.org/2000/svg" style="position:absolute;width:0;height:0;overflow:hidden" aria-hidden="true"><symbol id="i-home" viewBox="0 0 24 24"><path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol><symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol><symbol id="i-chart" viewBox="0 0 24 24"><path d="M4 20V10m6 10V4m5 16v-8m5 8v-6"/></symbol><symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01"/></symbol><symbol id="i-sparkle" viewBox="0 0 24 24"><path d="m12 2 2.1 7.9L22 12l-7.9 2.1L12 22l-2.1-7.9L2 12l7.9-2.1z"/><path d="m19 3 .6 1.7L21.4 5l-1.8.3L19 7l-.6-1.7L16.6 5l1.8-.3z"/></symbol><symbol id="i-database" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.7 4 3 9 3s9-1.3 9-3V5M3 12c0 1.7 4 3 9 3s9-1.3 9-3"/></symbol><symbol id="i-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v5m0-8h.01"/></symbol><symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></symbol><symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M5.7 9a7 7 0 0 1 12-2l2.3 5M4 12l2.3 5a7 7 0 0 0 12-2"/></symbol><symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4"/></symbol><symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 17V5m-5 5 5-5 5 5M4 17v4h16v-4"/></symbol><symbol id="i-x" viewBox="0 0 24 24"><path d="M5 5 19 19M19 5 5 19"/></symbol></svg>
   <script defer src="./app.js"></script>
 </body>
 </html>
